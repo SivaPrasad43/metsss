@@ -39,7 +39,8 @@ router.post('/attach', async (req: Request, res: Response) => {
         id: tag._id,
         name: tag.name,
         usageCount: tag.usageCount
-      }))
+      })),
+      ...(result.replacements && { replacements: result.replacements })
     });
   } catch (error) {
     console.error('Error attaching tags:', error);

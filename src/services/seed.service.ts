@@ -197,8 +197,24 @@ export const seedDatabase = async (): Promise<void> => {
     ],
   });
 
-  // Update usage counts
-  await tagModel.incrementUsageCount(Array.from(tagMap.values()));
+  // Update usage counts based on actual tag usage across all entities
+  const db = database.getDb();
+  const sources = await db.collection('sources').find({}).toArray();
+  const snippets = await db.collection('snippets').find({}).toArray();
+  const aiResponses = await db.collection('aiResponses').find({}).toArray();
 
-  logger.info('Database seeded successfully');
+  const tagUsageMap = new Map<string, number>();
+  
+  for (const entity of [...sources, ...snippets, ...aiResponses]) {
+    for (const tagId of entity.tagIds) {
+      const tagIdStr = tagId.toString();
+      tagUsageMap.set(tagIdStr, (tagUsageMap.get(tagIdStr) || 0) + 1);
+    }
+  }
+
+  for (const [tagIdStr, count] of tagUsageMap.entries()) {
+    await tagModel.setUsageCount(new ObjectId(tagIdStr), count);
+  }
+
+  logger.info(`Database seeded successfully - ${tagUsageMap.size} tags with usage counts updated`);
 };

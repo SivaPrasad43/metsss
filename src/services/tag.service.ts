@@ -6,19 +6,23 @@ import { AIResponseModel } from '../models/AIResponse';
 import { EntityType } from '../models/types';
 import { normalizeTags } from '../utils/normalize';
 import { embeddingService } from './embedding.service';
+import { SimilarTagDetectionService } from './similarTagDetection.service';
 import { config } from '../config';
+import { logger } from '../utils/logger';
 
 export class TagService {
   private tagModel: TagModel;
   private sourceModel: SourceModel;
   private snippetModel: SnippetModel;
   private aiResponseModel: AIResponseModel;
+  private similarTagDetectionService: SimilarTagDetectionService;
 
   constructor() {
     this.tagModel = new TagModel();
     this.sourceModel = new SourceModel();
     this.snippetModel = new SnippetModel();
     this.aiResponseModel = new AIResponseModel();
+    this.similarTagDetectionService = new SimilarTagDetectionService();
   }
 
   async attachTags(entityType: EntityType, entityId: string, tagNames: string[]) {
@@ -38,8 +42,41 @@ export class TagService {
       throw new Error(`${entityType} not found`);
     }
 
+    // Similar tag detection - replace with existing popular tags
+    const replacements: Array<{ original: string; replaced: string }> = [];
+    let finalTags = normalizedTags;
+
+    if (config.enableSimilarTagDetection) {
+      logger.debug(`Similar tag detection enabled (threshold: ${config.similarTagLevenshteinThreshold}, min usage: ${config.popularTagMinUsageCount})`);
+      
+      const popularTags = await this.tagModel.findPopularTags(config.popularTagMinUsageCount);
+      logger.debug(`Found ${popularTags.length} popular tags for comparison`);
+      
+      finalTags = normalizedTags.map(tagName => {
+        const similarTag = this.similarTagDetectionService.findSimilarTag(tagName, popularTags);
+        
+        if (similarTag) {
+          replacements.push({ original: tagName, replaced: similarTag.name });
+          return similarTag.name;
+        }
+        
+        return tagName;
+      });
+
+      // Remove duplicates after replacement
+      finalTags = [...new Set(finalTags)];
+      
+      if (replacements.length > 0) {
+        logger.info(`Tag replacements made: ${replacements.length}`, { replacements });
+      } else {
+        logger.debug('No tag replacements needed');
+      }
+    } else {
+      logger.debug('Similar tag detection disabled');
+    }
+
     // Find or create tags - idempotent operation
-    const tags = await this.tagModel.findOrCreate(normalizedTags);
+    const tags = await this.tagModel.findOrCreate(finalTags);
     
     // Generate embeddings for new tags
     if (config.cohereApiKey) {
@@ -63,7 +100,7 @@ export class TagService {
     // Increment usage counts
     await this.tagModel.incrementUsageCount(tagIds);
 
-    return { tags, attached: tagIds.length };
+    return { tags, attached: tagIds.length, replacements: replacements.length > 0 ? replacements : undefined };
   }
 
   private getModel(entityType: EntityType) {

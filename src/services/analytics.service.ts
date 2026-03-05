@@ -73,13 +73,25 @@ export class AnalyticsService {
         $project: {
           tagId: '$_id',
           tagName: '$name',
-          totalUsage: '$usageCount',
           byEntityType: {
             source: { $ifNull: [{ $arrayElemAt: ['$sourceCount.count', 0] }, 0] },
             snippet: { $ifNull: [{ $arrayElemAt: ['$snippetCount.count', 0] }, 0] },
             aiResponse: { $ifNull: [{ $arrayElemAt: ['$aiResponseCount.count', 0] }, 0] }
           },
           createdAt: 1
+        }
+      },
+      
+      //Calculate total usage from entity type counts
+      {
+        $addFields: {
+          totalUsage: {
+            $add: [
+              '$byEntityType.source',
+              '$byEntityType.snippet',
+              '$byEntityType.aiResponse'
+            ]
+          }
         }
       },
       

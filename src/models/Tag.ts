@@ -43,6 +43,13 @@ export class TagModel {
     );
   }
 
+  async setUsageCount(tagId: ObjectId, count: number): Promise<void> {
+    await this.collection.updateOne(
+      { _id: tagId },
+      { $set: { usageCount: count } }
+    );
+  }
+
   async findByIds(tagIds: ObjectId[]): Promise<Tag[]> {
     return this.collection.find({ _id: { $in: tagIds } }).toArray();
   }
@@ -53,6 +60,13 @@ export class TagModel {
 
   async findAll(): Promise<Tag[]> {
     return this.collection.find({}).toArray();
+  }
+
+  async findPopularTags(minUsageCount: number): Promise<Tag[]> {
+    return this.collection
+      .find({ usageCount: { $gte: minUsageCount } })
+      .sort({ usageCount: -1 })
+      .toArray();
   }
 
   async updateEmbedding(tagId: ObjectId, embedding: number[]): Promise<void> {
