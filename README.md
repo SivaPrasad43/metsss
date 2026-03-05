@@ -462,7 +462,7 @@ cat logs/app-$(date +%Y-%m-%d).log | jq 'select(.level == "error")'
 - Index on `usageCount` for faster popular tag queries
 - Pagination for popular tags query (currently loads all)
 
-### 7. API Enhancements
+### 4. API Enhancements
 - Bulk tag attachment endpoint (attach tags to multiple entities)
 - Tag statistics endpoint (most used, trending, related tags)
 - GraphQL API for flexible querying
